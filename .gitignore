@@ -13,6 +13,11 @@ develop-eggs/
 dist/
 downloads/
 eggs/
+<<<<<<< HEAD
+=======
+.env
+index_check/.env
+>>>>>>> 8fb802d (initial commit)
 .eggs/
 lib/
 lib64/
