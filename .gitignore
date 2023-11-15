@@ -126,6 +126,7 @@ celerybeat.pid
 
 # Environments
 index_check/.env
+docker-compose.yml
 .env
 .venv
 env/
