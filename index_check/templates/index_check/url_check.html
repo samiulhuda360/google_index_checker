@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>URL Checker</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .navbar {
+            background-color: #333;
+            color: white;
+            padding: 10px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .navbar a {
+            color: white;
+            text-decoration: none;
+            padding: 5px 10px;
+        }
+        .navbar a:hover {
+            background-color: #ddd;
+            color: black;
+        }
+        .container {
+            padding: 20px;
+            max-width: 800px; /* Adjust as needed */
+            margin: auto; /* Center the container */
+        }
+        form {
+            background-color: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1); /* Added subtle shadow for depth */
+        }
+        .form-group {
+            margin-bottom: 10px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="file"],
+        textarea,
+        button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 10px; /* Added margin for spacing */
+        }
+        button {
+            background-color: #5cb85c;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px; /* Larger font size for better clickability */
+        }
+        button:hover {
+            background-color: #4cae4c;
+        }
+
+        .url-status-list table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px; /* Space between the form and table */
+        }
+        
+        .url-status-list th, .url-status-list td {
+            border: 1px solid #ddd; /* Light grey border */
+            padding: 10px;
+            text-align: left;
+        }
+        
+        .url-status-list th {
+            background-color: #0000FF; /* Blue header */
+            color: white;
+        }
+        
+        .url-status-list tr:nth-child(even) {
+            background-color: #f2f2f2; /* Zebra striping for rows */
+        }
+        
+        .url-status-list tr:hover {
+            background-color: #ddd; /* Hover effect for rows */
+        }
+        
+        /* Style for the empty message row */
+        .url-status-list .empty-message {
+            text-align: center;
+            color: #666;
+        }
+        
+    </style>
+</head>
+<body>
+    <div class="navbar">
+        <span>URL Checker</span>
+        <a href="/login">Login</a>
+    </div>
+
+    <div class="container">
+        <form method="post" enctype="multipart/form-data" id="urlForm">
+            {% csrf_token %}
+            <div class="form-group">
+                <label for="urls_file">Upload Excel file with URLs:</label>
+                <!-- Match the name attribute with the Django form expectation -->
+                <input type="file" id="urls_file" name="urls_file">
+            </div>
+            <div class="form-group">
+                <label for="urls_text">Or paste URLs here (one per line):</label>
+                <!-- Match the name attribute with the Django form expectation -->
+                <textarea id="urls_text" name="urls_text" rows="6"></textarea>
+            </div>
+            <button type="submit">Check URLs</button>
+        </form>
+        <!-- Reset Form -->
+        <form action="{% url 'reset_view' %}" method="post">
+            {% csrf_token %}
+            <button type="submit" id="resetButton">Reset</button>
+        </form>
+        
+
+    <!-- Display URL Statuses -->
+    <div class="url-status-list">
+        <h2>URL Check Status</h2>
+        <table>
+            <tr>
+                <th>URL</th>
+                <th>Status</th>
+            </tr>
+            {% for url_status in url_status_list %}
+            <tr>
+                <td>{{ url_status.url }}</td>
+                <td>{{ url_status.is_indexed }}</td>
+            </tr>
+            {% empty %}
+            <tr>
+                <td colspan="2">No URL statuses available.</td>
+            </tr>
+            {% endfor %}
+        </table>
+    </div>
+    </div>
+    <script type="text/javascript">
+        let statusUpdateInterval; // Define the interval variable globally
+    
+        document.addEventListener('DOMContentLoaded', function() {
+            var resetForm = document.querySelector('form[action="{% url "reset_view" %}"]');
+            if (resetForm) {
+                resetForm.addEventListener('submit', function() {
+                    window.location.reload(true);  // Force a reload of the page
+                });
+            }
+            window.addEventListener('beforeunload', function() {
+                clearInterval(statusUpdateInterval);
+            });
+    
+            // Set up the form submission and interval again
+            var form = document.getElementById('urlForm');
+            if (form) {
+                form.addEventListener('submit', function(event) {
+                    event.preventDefault();
+                    submitForm();
+
+                });
+            // Set the interval for updating URL statuses
+            }
+    
+
+        });
+    
+        function submitForm() {
+            var form = document.getElementById('urlForm');
+            var formData = new FormData(form);
+            statusUpdateInterval = setInterval(updateUrlStatuses, 5000);
+    
+            fetch('/', { // The endpoint is the root as defined in your urls.py for url_check_view
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken') // Ensure CSRF token is sent with the request
+                },
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok: ' + response.statusText);
+                }
+                return response.json(); // This assumes the server responds with JSON
+            })
+            .then(data => {
+                if (data.all_done) {
+                    window.location.href = data.redirect_url; // Redirects to the download URL
+                } else {
+                    setTimeout(checkTaskStatus, 2000); // Poll every 2 seconds
+                }
+            })
+            .catch(error => {
+                console.error('Form submission error:', error);
+            });
+        }
+    
+        function checkTaskStatus() {
+            fetch('/task-status/') // Fetch the task status from the server
+            .then(response => response.json())
+            .then(data => {
+                if (data.all_done) {
+                    window.location.href = data.redirect_url; // Redirects to the download URL
+                } else {
+                    setTimeout(checkTaskStatus, 2000); // Continue polling every 2 seconds
+                }
+            })
+            .catch(error => {
+                console.error('Error checking task status:', error);
+            });
+        }
+    
+        function updateUrlStatuses() {
+            fetch('/fetch-url-status/')
+            .then(response => response.json())
+            .then(data => {
+                var statusHtml = '';
+                data.url_status_list.forEach(status => {
+                    statusHtml += `
+                        <tr>
+                            <td>${status.url}</td>
+                            <td>${status.is_indexed}</td>
+                        </tr>`;
+                });
+                if (data.url_status_list.length === 0) {
+                    statusHtml = '<tr class="empty-message"><td colspan="2">No URL statuses available.</td></tr>';
+                }
+                document.querySelector('.url-status-list table').innerHTML = statusHtml;
+            })
+            .catch(error => console.error('Error fetching URL statuses:', error));
+        }
+    
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+    
+    
+    
+    
+</body>
+</html>
