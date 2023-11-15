@@ -8,6 +8,9 @@ ENV PYTHONUNBUFFERED 1
 # Set work directory
 WORKDIR /code
 
+# Install system dependencies
+RUN apt-get update && apt-get install -y netcat-openbsd
+
 # Install dependencies
 COPY requirements.txt /code/
 RUN pip install --upgrade pip && pip install -r requirements.txt
@@ -15,5 +18,8 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 # Copy project
 COPY . /code/
 
-# Run the application
-CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+# Collect static files
+RUN python manage.py collectstatic --noinput
+
+# Gunicorn
+CMD gunicorn your_project_name.wsgi:application --bind 0.0.0.0:8000
